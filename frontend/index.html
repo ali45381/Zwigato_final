@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>zwigato</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+
+<nav>
+    <a href="#">Foodie 🍔</a> |
+    <a href="#">Home</a> |
+    <a href="#">Menu</a> |
+    <a href="#">About</a> |
+    <a href="#" id="cart-link">Cart🛒</a>
+</nav>
+
+<section class="ain">
+    <h1 class="a" style="font-family: 'Courier New', Courier, monospace;">
+        Zwigato
+    </h1>
+
+    <p class="b">Delicious food delivered to your door</p>
+    <button class="ali">Order Now</button>
+</section>
+
+
+
+<section class="pop-food">
+    <h2>Popular Categories</h2>
+
+    <button class="pop" onclick="filterFood('Pizza')">🍕 Pizza</button>
+    <button class="pop" onclick="filterFood('Burger')">🍔 Burger</button>
+    <button class="pop" onclick="filterFood('Biryani')">🤤 Biryani</button>
+    <button class="pop" onclick="filterFood('Desserts')">🍨 Desserts</button>
+    <button class="pop" onclick="filterFood('Drinks')">🧋 Drinks</button>
+    <button class="pop" onclick="displayFood(food)">All</button>
+</section>
+
+
+<section class="popular-food" id="food-container">
+    <!-- JavaScript will create food cards here -->
+</section>
+
+
+<div id="cart-container">
+    <!-- JavaScript will create cart items here -->
+</div>
+<button id="place-order">Place Order</button>
+
+<script src="./script.js"></script>
+
+</body>
+</html>
