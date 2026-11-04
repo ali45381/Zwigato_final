@@ -3,6 +3,9 @@ let food = [];
 let cart = [];
 let total = 0;
 
+// LIVE BACKEND URL
+const API_URL = "https://zwigato-backend-new.onrender.com";
+
 // CATEGORY SECTION
 const parent = document.querySelector(".pop-food");
 
@@ -12,8 +15,6 @@ allButton.className = "pop";
 allButton.dataset.category = "All";
 parent.append(allButton);
 
-// Give each existing category button a clean category name.
-// The emoji stays visible, but is not used for filtering.
 const categoryNames = [
   "Pizza",
   "Burger",
@@ -36,32 +37,23 @@ categoryButtons.forEach(function (button) {
 
 // FILTER FOOD
 function filterFood(category) {
-  console.log("Selected category:", category);
-
   const filteredFood = food.filter(function (item) {
     return String(item.category || "").trim().toLowerCase() ===
       String(category || "").trim().toLowerCase();
   });
 
-  console.log("Filtered results:", filteredFood);
-
   displayFood(filteredFood);
 }
 
-// ONE CLICK HANDLER FOR ALL CATEGORY BUTTONS
+// CATEGORY BUTTON HANDLER
 parent.addEventListener("click", function (event) {
   const button = event.target.closest("button.pop");
 
-  if (!button || !parent.contains(button)) {
-    return;
-  }
+  if (!button || !parent.contains(button)) return;
 
   const category = button.dataset.category;
 
-  if (!category) {
-    console.warn("Category not configured:", button.textContent);
-    return;
-  }
+  if (!category) return;
 
   if (category === "All") {
     displayFood(food);
@@ -81,7 +73,6 @@ function displayFood(foodlist) {
 
   foodContainer.innerHTML = "";
 
-  // Handle empty results safely
   if (!Array.isArray(foodlist) || foodlist.length === 0) {
     foodContainer.textContent = "No food found in this category.";
     return;
@@ -94,7 +85,14 @@ function displayFood(foodlist) {
     div1.className = "food";
 
     const img = document.createElement("img");
-    img.src = item.image;
+
+    // Support both full URLs and existing relative image paths.
+    img.src = item.image?.startsWith("http")
+      ? item.image
+      : item.image?.startsWith("./images/") || item.image?.startsWith("images/")
+        ? item.image
+        : "./images/" + item.image;
+
     img.alt = item.name || "Food";
     img.className = "food-image";
 
@@ -117,7 +115,7 @@ function displayFood(foodlist) {
       };
 
       try {
-        const res = await fetch("http://localhost:5000/api/cart", {
+        const res = await fetch(`${API_URL}/api/cart`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -131,32 +129,31 @@ function displayFood(foodlist) {
 
         const data = await res.json();
 
-        // The backend should return the updated cart array.
         cart = Array.isArray(data) ? data : data.cart;
 
         if (!Array.isArray(cart)) {
-          throw new Error("Backend did not return the expected cart");
+          throw new Error("Unexpected cart response");
         }
 
         price();
         add();
         cartadd();
+
       } catch (err) {
         console.error("Cart error:", err);
+        alert("Could not add item to cart.");
       }
     });
 
     div1.append(img, p1, p2, p3, but1);
     foodContainer.append(div1);
   }
-
-  console.log("Displayed food:", foodlist);
 }
 
-// FETCH FOODS FROM POSTGRESQL API
+// FETCH FOODS FROM RENDER BACKEND
 async function loadFoods() {
   try {
-    const res = await fetch("http://localhost:5000/api/foods");
+    const res = await fetch(`${API_URL}/api/foods`);
 
     console.log("Food API status:", res.status);
 
@@ -172,6 +169,7 @@ async function loadFoods() {
 
     food = data;
     displayFood(food);
+
   } catch (err) {
     console.error("Food fetch error:", err);
   }
@@ -193,10 +191,10 @@ function cartadd() {
   }
 }
 
-// LOAD CART FROM BACKEND
+// LOAD CART FROM RENDER BACKEND
 async function loadCart() {
   try {
-    const res = await fetch("http://localhost:5000/api/cart");
+    const res = await fetch(`${API_URL}/api/cart`);
 
     if (!res.ok) {
       throw new Error("Failed to fetch cart");
@@ -207,12 +205,13 @@ async function loadCart() {
     cart = Array.isArray(data) ? data : data.cart;
 
     if (!Array.isArray(cart)) {
-      throw new Error("Backend did not return the expected cart");
+      throw new Error("Unexpected cart response");
     }
 
     price();
     add();
     cartadd();
+
   } catch (err) {
     console.error("Cart fetch error:", err);
   }
@@ -223,9 +222,7 @@ loadCart();
 // SYNCHRONIZE CART WITH BACKEND
 async function syncCart() {
   try {
-    console.log("Sending cart to backend:", cart);
-
-    const res = await fetch("http://localhost:5000/api/cart", {
+    const res = await fetch(`${API_URL}/api/cart`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json"
@@ -242,8 +239,9 @@ async function syncCart() {
     cart = Array.isArray(data) ? data : data.cart;
 
     if (!Array.isArray(cart)) {
-      throw new Error("Backend did not return the expected cart");
+      throw new Error("Unexpected cart response");
     }
+
   } catch (err) {
     console.error("Cart sync error:", err);
     throw err;
@@ -253,6 +251,9 @@ async function syncCart() {
 // SEARCH FOOD
 function search() {
   const nav = document.querySelector("nav");
+
+  if (!nav) return;
+
   const input = document.createElement("input");
 
   input.placeholder = "Search food...";
@@ -279,6 +280,9 @@ search();
 // DISPLAY CART
 function add() {
   const cartContainer = document.getElementById("cart-container");
+
+  if (!cartContainer) return;
+
   cartContainer.innerHTML = "";
 
   for (let j = 0; j < cart.length; j++) {
@@ -364,6 +368,7 @@ function add() {
 
   const totalText = document.createElement("p");
   totalText.textContent = "Total: ₹" + total;
+
   cartContainer.append(totalText);
 }
 
@@ -388,7 +393,7 @@ if (orderButton) {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/api/order", {
+      const response = await fetch(`${API_URL}/api/order`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -408,23 +413,20 @@ if (orderButton) {
       alert("Order placed successfully!");
       console.log("Saved order:", data.order);
 
-      // Clear the cart on the backend
-      const clearResponse = await fetch(
-        "http://localhost:5000/api/cart",
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify([])
-        }
-      );
+      const clearResponse = await fetch(`${API_URL}/api/cart`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify([])
+      });
 
       if (!clearResponse.ok) {
         throw new Error("Order saved, but cart could not be cleared");
       }
 
       const clearData = await clearResponse.json();
+
       cart = Array.isArray(clearData) ? clearData : clearData.cart;
 
       if (!Array.isArray(cart)) {
@@ -434,6 +436,7 @@ if (orderButton) {
       price();
       add();
       cartadd();
+
     } catch (error) {
       console.error("Order error:", error);
       alert("There was a problem processing your order. Check the console.");
