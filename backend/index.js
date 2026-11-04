@@ -1,22 +1,30 @@
-
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import pg from "pg";
 
 const app = express();
-const port = 5000;
+const port = process.env.PORT || 5000;
 
 let cart = [];
 
 app.use(cors());
 app.use(express.json());
 
-// Test route
-app.get("/test", (req, res) => {
-  res.send("Correct server is running");
+// PostgreSQL connection
+const db = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
-// Get food from PostgreSQL
+// Test route
+app.get("/test", (req, res) => {
+  res.send("Zwigato backend is running");
+});
+
+// Get all foods
 app.get("/api/foods", async (req, res) => {
   try {
     const result = await db.query(
@@ -28,11 +36,12 @@ app.get("/api/foods", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch foods" });
   }
 });
+
+// Add food
 app.post("/api/foods", async (req, res) => {
   try {
     const { name, price, category, rating, image } = req.body;
 
-    // Validate the incoming food data
     if (
       !name ||
       price == null ||
@@ -45,37 +54,25 @@ app.post("/api/foods", async (req, res) => {
       });
     }
 
-    // Insert the new food into PostgreSQL
     const result = await db.query(
       `INSERT INTO public.ali
        (name, price, category, rating, image)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [
-        name,
-        Number(price),
-        category,
-        rating ?? null,
-        image ?? null
-      ]
+      [name, Number(price), category, rating ?? null, image ?? null]
     );
 
-    // Return the saved food item
     res.status(201).json({
       message: "Food added successfully",
       food: result.rows[0]
     });
-
   } catch (err) {
     console.error("Add food error:", err.message);
-
-    res.status(500).json({
-      error: "Failed to add food"
-    });
+    res.status(500).json({ error: "Failed to add food" });
   }
 });
 
-// Get current cart
+// Get cart
 app.get("/api/cart", (req, res) => {
   res.json(cart);
 });
@@ -84,7 +81,13 @@ app.get("/api/cart", (req, res) => {
 app.post("/api/cart", (req, res) => {
   const food = req.body;
 
-  if (!food || food.id == null || !food.name || !Number.isFinite(Number(food.price))) {
+  if (
+    !food ||
+    food.id == null ||
+    !food.name ||
+    !Number.isFinite(Number(food.price)) ||
+    Number(food.price) < 0
+  ) {
     return res.status(400).json({ error: "Invalid food data" });
   }
 
@@ -95,28 +98,19 @@ app.post("/api/cart", (req, res) => {
   if (existingItem) {
     existingItem.quantity += 1;
   } else {
-    cart.push({
-      ...food,
-      quantity: 1
-    });
+    cart.push({ ...food, quantity: 1 });
   }
 
-  console.log("Cart after adding:", cart);
   res.status(201).json(cart);
 });
 
-// Update the entire cart
+// Update cart
 app.patch("/api/cart", (req, res) => {
-  console.log("PATCH ROUTE REACHED");
-
   if (!Array.isArray(req.body)) {
-    return res.status(400).json({
-      error: "Cart must be an array"
-    });
+    return res.status(400).json({ error: "Cart must be an array" });
   }
 
   cart = req.body;
-  console.log("Updated cart:", cart);
 
   res.status(200).json({
     message: "Cart updated successfully",
@@ -124,23 +118,37 @@ app.patch("/api/cart", (req, res) => {
   });
 });
 
+// Place order
 app.post("/api/order", async (req, res) => {
   try {
     const orderCart = req.body.cart;
 
-    // 1. Validate the cart
     if (!Array.isArray(orderCart) || orderCart.length === 0) {
       return res.status(400).json({
         error: "Cart is empty or missing"
       });
     }
 
-    // 2. Calculate the total price
-    const totalPrice = orderCart.reduce((total, item) => {
-      return total + (Number(item.price) * Number(item.quantity));
-    }, 0);
+    const validItems = orderCart.every(item =>
+      item &&
+      item.id != null &&
+      item.name &&
+      Number.isFinite(Number(item.price)) &&
+      Number(item.price) >= 0 &&
+      Number.isInteger(Number(item.quantity)) &&
+      Number(item.quantity) > 0
+    );
 
-    // 3. Save the order in PostgreSQL
+    if (!validItems) {
+      return res.status(400).json({ error: "Invalid order items" });
+    }
+
+    const totalPrice = orderCart.reduce(
+      (total, item) =>
+        total + Number(item.price) * Number(item.quantity),
+      0
+    );
+
     const result = await db.query(
       `INSERT INTO public.orders (items, total_price)
        VALUES ($1, $2)
@@ -148,33 +156,22 @@ app.post("/api/order", async (req, res) => {
       [JSON.stringify(orderCart), totalPrice]
     );
 
-    // 4. Send confirmation after saving
+    cart = [];
+
     res.status(201).json({
       message: "Order placed successfully",
       order: result.rows[0]
     });
-
-  } catch (error) {
-    console.error("Error placing order:", error);
-
-    res.status(500).json({
-      error: "Failed to place order"
-    });
+  } catch (err) {
+    console.error("Order error:", err.message);
+    res.status(500).json({ error: "Failed to place order" });
   }
 });
 
-// Connect to PostgreSQL before starting the server
-const db = new pg.Client({
-  user: "postgres",
-  host: "localhost",
-  database: "school",
-  password: "Ali@1",
-  port: 5432
-});
-
+// Start server after checking database connection
 async function startServer() {
   try {
-    await db.connect();
+    await db.query("SELECT 1");
     console.log("Connected to PostgreSQL");
 
     app.listen(port, () => {
